@@ -1479,6 +1479,8 @@ function removeIpPool($id) {
 // IP POOL FORM ACTION: Add IP to Pool
 function add_ip_2_pool() {
 	require_once(ROOTDIR.'/modules/addons/pvewhmcs/Ipv4/Subnet.php');
+	require_once(ROOTDIR.'/modules/addons/pvewhmcs/Ipv6/Subnet.php');
+
 	echo '<form method="post">
 	<table class="form" border="0" cellpadding="3" cellspacing="1" width="100%">
 	<tr>
@@ -1487,7 +1489,7 @@ function add_ip_2_pool() {
 	<select class="form-control select-inline" name="pool_id">';
 	foreach (Capsule::table('mod_pvewhmcs_ip_pools')->get() as $pool) {
 		echo '<option value="'.$pool->id.'">'.$pool->title.'</option>';
-		$gateways[]=$pool->gateway ;
+		$gateways[] = $pool->gateway;
 	}
 	echo '</select>
 	</td>
@@ -1502,39 +1504,44 @@ function add_ip_2_pool() {
 	</table>
 	<input type="submit" name="assignIP2pool" value="Save"/>
 	</form>';
+
 	if (isset($_POST['assignIP2pool'])) {
-			// check if single IP address
-		if ((strpos($_POST['ipblock'],'/'))!=false) {
-			$subnet=Ipv4_Subnet::fromString($_POST['ipblock']);
-			$ips = $subnet->getIterator();
-			foreach($ips as $ip) {
-				if (!in_array($ip, $gateways)) {
-					Capsule::table('mod_pvewhmcs_ip_addresses')->insert(
-						[
-							'pool_id' => $_POST['pool_id'],
-							'ipaddress' => $ip,
-							'mask' => $subnet->getNetmask(),
-						]
-					);
-				}
-			}
+		// Check if single IP address
+		$ipBlock = $_POST['ipblock'];
+
+		// Determine if IPv4 or IPv6
+		$isIPv4 = filter_var($ipBlock, FILTER_VALIDATE_IP, FILTER_FLAG_IPV4);
+		$isIPv6 = filter_var($ipBlock, FILTER_VALIDATE_IP, FILTER_FLAG_IPV6);
+
+		if ($isIPv4) {
+			$subnet = Ipv4_Subnet::fromString($ipBlock);
+		} elseif ($isIPv6) {
+			$subnet = Ipv6_Subnet::fromString($ipBlock);
+		} else {
+			// Handle invalid IP address format
+			echo 'Invalid IP address format';
+			return;
 		}
-		else {
-			if (!in_array($_POST['ipblock'], $gateways)) {
+
+		$ips = $subnet->getIterator();
+		foreach ($ips as $ip) {
+			if (!in_array($ip, $gateways)) {
 				Capsule::table('mod_pvewhmcs_ip_addresses')->insert(
 					[
 						'pool_id' => $_POST['pool_id'],
-						'ipaddress' => $_POST['ipblock'],
-						'mask' => '255.255.255.255',
+						'ipaddress' => $ip,
+						'mask' => $subnet->getNetmask(),
 					]
 				);
 			}
 		}
+
 		header("Location: ".pvewhmcs_BASEURL."&tab=ippools&action=list_ips&id=".$_POST['pool_id']);
 		$_SESSION['pvewhmcs']['infomsg']['title']='IP Address/Blocks added to Pool.' ;
 		$_SESSION['pvewhmcs']['infomsg']['message']='You can remove IP Addresses from the pool.' ;
 	}
 }
+
 
 // IP POOL FORM: List IPs in Pool
 function list_ips() {

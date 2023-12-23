@@ -20,6 +20,24 @@ CREATE TABLE IF NOT EXISTS `mod_pvewhmcs_ip_pools` (
   `gateway` varchar(100) DEFAULT NULL,
   PRIMARY KEY (`id`)
 );
+-- 创建 IPv6 地址表
+CREATE TABLE IF NOT EXISTS `mod_pvewhmcs_ipv6_addresses` (
+  `id` int(11) NOT NULL AUTO_INCREMENT,
+  `pool_id` int(11) NOT NULL DEFAULT '0',
+  `ipaddress` varchar(255) NOT NULL DEFAULT '0',
+  `mask` varchar(255) NOT NULL DEFAULT '0',
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `ipaddress` (`ipaddress`)
+);
+
+-- 创建 IPv6 地址池表
+CREATE TABLE IF NOT EXISTS `mod_pvewhmcs_ipv6_pools` (
+  `id` int(11) NOT NULL AUTO_INCREMENT,
+  `title` varchar(255) NOT NULL,
+  `gateway` varchar(100) DEFAULT NULL,
+  PRIMARY KEY (`id`)
+);
+
 CREATE TABLE IF NOT EXISTS `mod_pvewhmcs_plans` (
   `id` int(10) unsigned NOT NULL AUTO_INCREMENT,
   `title` varchar(255) CHARACTER SET utf8 NOT NULL,

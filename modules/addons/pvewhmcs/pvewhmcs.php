@@ -1478,68 +1478,88 @@ function removeIpPool($id) {
 
 // IP POOL FORM ACTION: Add IP to Pool
 function add_ip_2_pool() {
-	require_once(ROOTDIR.'/modules/addons/pvewhmcs/Ipv4/Subnet.php');
-	require_once(ROOTDIR.'/modules/addons/pvewhmcs/Ipv6/Subnet.php');
-
-	echo '<form method="post">
-	<table class="form" border="0" cellpadding="3" cellspacing="1" width="100%">
-	<tr>
-	<td class="fieldlabel">IP Pool</td>
-	<td class="fieldarea">
-	<select class="form-control select-inline" name="pool_id">';
-	foreach (Capsule::table('mod_pvewhmcs_ip_pools')->get() as $pool) {
-		echo '<option value="'.$pool->id.'">'.$pool->title.'</option>';
-		$gateways[] = $pool->gateway;
-	}
-	echo '</select>
-	</td>
-	</tr>
-	<tr>
-	<td class="fieldlabel">IP Block</td>
-	<td class="fieldarea">
-	<input type="text" name="ipblock"/>
-	IP Block with CIDR e.g. 172.16.255.230/27, for single IP address just don\'t use CIDR
-	</td>
-	</tr>
-	</table>
-	<input type="submit" name="assignIP2pool" value="Save"/>
-	</form>';
-
-	if (isset($_POST['assignIP2pool'])) {
-		// Check if single IP address
-		$ipBlock = $_POST['ipblock'];
-
-		// Determine if IPv4 or IPv6
-		$isIPv4 = filter_var($ipBlock, FILTER_VALIDATE_IP, FILTER_FLAG_IPV4);
-		$isIPv6 = filter_var($ipBlock, FILTER_VALIDATE_IP, FILTER_FLAG_IPV6);
-
-		if ($isIPv4) {
-			$subnet = Ipv4_Subnet::fromString($ipBlock);
-		} elseif ($isIPv6) {
-			$subnet = Ipv6_Subnet::fromString($ipBlock);
-		} else {
-			// Handle invalid IP address format
-			echo 'Invalid IP address format';
-			return;
-		}
-
-		$ips = $subnet->getIterator();
-		foreach ($ips as $ip) {
-			if (!in_array($ip, $gateways)) {
-				Capsule::table('mod_pvewhmcs_ip_addresses')->insert(
-					[
-						'pool_id' => $_POST['pool_id'],
-						'ipaddress' => $ip,
-						'mask' => $subnet->getNetmask(),
-					]
-				);
-			}
-		}
-
-		header("Location: ".pvewhmcs_BASEURL."&tab=ippools&action=list_ips&id=".$_POST['pool_id']);
-		$_SESSION['pvewhmcs']['infomsg']['title']='IP Address/Blocks added to Pool.' ;
-		$_SESSION['pvewhmcs']['infomsg']['message']='You can remove IP Addresses from the pool.' ;
-	}
+    require_once(ROOTDIR.'/modules/addons/pvewhmcs/Ipv4/Subnet.php');
+    
+    echo '<form method="post">
+        <table class="form" border="0" cellpadding="3" cellspacing="1" width="100%">
+            <tr>
+                <td class="fieldlabel">IP Pool</td>
+                <td class="fieldarea">
+                    <select class="form-control select-inline" name="pool_id">';
+    
+    // Fetch IPv4 pools
+    $ipv4Pools = Capsule::table('mod_pvewhmcs_ip_pools')->get();
+    
+    // Fetch IPv6 pools
+    $ipv6Pools = Capsule::table('mod_pvewhmcs_ipv6_pools')->get();
+    
+    foreach ($ipv4Pools as $pool) {
+        echo '<option value="'.$pool->id.'">'.$pool->title.'</option>';
+    }
+    
+    foreach ($ipv6Pools as $pool) {
+        echo '<option value="'.$pool->id.'">'.$pool->title.' (IPv6)</option>';
+    }
+    
+    echo '</select>
+                </td>
+            </tr>
+            <tr>
+                <td class="fieldlabel">IP Block</td>
+                <td class="fieldarea">
+                    <input type="text" name="ipblock"/>
+                    IP Block with CIDR e.g. 172.16.255.230/27 for IPv4, or 2001:db8::/32 for IPv6. For a single IP address, just don\'t use CIDR.
+                </td>
+            </tr>
+        </table>
+        <input type="submit" name="assignIP2pool" value="Save"/>
+    </form>';
+    
+    if (isset($_POST['assignIP2pool'])) {
+        // check if single IP address
+        if ((strpos($_POST['ipblock'],'/')) !== false) {
+            $ipVersion = filter_var($_POST['ipblock'], FILTER_VALIDATE_IP, FILTER_FLAG_IPV4) ? 'IPv4' : 'IPv6';
+    
+            $subnet = ($ipVersion === 'IPv4') ? Ipv4_Subnet::fromString($_POST['ipblock']) : Ipv6_Subnet::fromString($_POST['ipblock']);
+            $ips = $subnet->getIterator();
+            
+            foreach ($ips as $ip) {
+                $tableName = ($ipVersion === 'IPv4') ? 'mod_pvewhmcs_ip_addresses' : 'mod_pvewhmcs_ipv6_addresses';
+                $gateways = Capsule::table($tableName)->where('pool_id', $_POST['pool_id'])->pluck('ipaddress')->toArray();
+    
+                if (!in_array($ip, $gateways)) {
+                    Capsule::table($tableName)->insert(
+                        [
+                            'pool_id' => $_POST['pool_id'],
+                            'ipaddress' => $ip,
+                            'mask' => $subnet->getNetmask(),
+                        ]
+                    );
+                }
+            }
+        } else {
+            $ipVersion = filter_var($_POST['ipblock'], FILTER_VALIDATE_IP, FILTER_FLAG_IPV4) ? 'IPv4' : 'IPv6';
+    
+            $tableName = ($ipVersion === 'IPv4') ? 'mod_pvewhmcs_ip_addresses' : 'mod_pvewhmcs_ipv6_addresses';
+            $gateways = Capsule::table($tableName)->where('pool_id', $_POST['pool_id'])->pluck('ipaddress')->toArray();
+    
+            if (!in_array($_POST['ipblock'], $gateways)) {
+                Capsule::table($tableName)->insert(
+                    [
+                        'pool_id' => $_POST['pool_id'],
+                        'ipaddress' => $_POST['ipblock'],
+                        'mask' => ($ipVersion === 'IPv4') ? '255.255.255.255' : 'ffff:ffff:ffff:ffff::',
+                    ]
+                );
+            }
+        }
+    
+        $redirectUrl = ($ipVersion === 'IPv4') ? pvewhmcs_BASEURL.'&tab=ippools&action=list_ips&id=' : pvewhmcs_BASEURL.'&tab=ipv6pools&action=list_ipv6_ips&id=';
+    
+        header("Location: ".$redirectUrl.$_POST['pool_id']);
+        $_SESSION['pvewhmcs']['infomsg']['title'] = 'IP Address/Blocks added to Pool.' ;
+        $_SESSION['pvewhmcs']['infomsg']['message'] = 'You can remove IP Addresses from the pool.' ;
+    }
 }
 
 

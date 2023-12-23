@@ -99,7 +99,7 @@ function pvewhmcs_CreateAccount($params) {
     // Retrieve Plan from table
 	$plan = Capsule::table('mod_pvewhmcs_plans')->where('id', '=', $params['configoption1'])->get()[0];
 
-	$serverip = $params["serverip"];
+	$serveraddress = $params["serverip"];
 	$serverusername = $params["serverusername"];
 	$serverpassword = $params["serverpassword"];
 
@@ -112,7 +112,7 @@ function pvewhmcs_CreateAccount($params) {
 	if (!empty($params['customfields']['KVMTemplate'])) {
 		// file_put_contents('d:\log.txt', $params['customfields']['KVMTemplate']);
 
-		$proxmox = new PVE2_API($serverip, $serverusername, "pam", $serverpassword);
+		$proxmox = new PVE2_API($serveraddress, $serverusername, "pam", $serverpassword);
 		if ($proxmox->login()) {
             // Get first node name.
 			$nodes = $proxmox->get_node_list();
@@ -226,7 +226,7 @@ function pvewhmcs_CreateAccount($params) {
 
 		// CREATION: Attempt to create the QEMU/LXC instance on Proxmox VE via API
 		try {
-			$proxmox = new PVE2_API($serverip, $serverusername, "pam", $serverpassword);
+			$proxmox = new PVE2_API($serveraddress, $serverusername, "pam", $serverpassword);
 
 			if ($proxmox->login()) {
                 // Get first node name.
@@ -301,10 +301,10 @@ function pvewhmcs_TestConnection(array $params) {
 
     try {
         // Call the service's connection test function.
-        $serverip = $params["serverip"];
+        $serveraddress = $params["serverip"];
         $serverusername = $params["serverusername"];
         $serverpassword = $params["serverpassword"];
-        $proxmox = new PVE2_API($serverip, $serverusername, "pam", $serverpassword);
+        $proxmox = new PVE2_API($serveraddress, $serverusername, "pam", $serverpassword);
 
         if (!$proxmox->login()) {
             $success = false; // Set success to false if login fails
@@ -327,11 +327,11 @@ function pvewhmcs_TestConnection(array $params) {
 
 // PVE API FUNCTION, ADMIN: Suspend a Service on the hypervisor
 function pvewhmcs_SuspendAccount(array $params) {
-	$serverip = $params["serverip"];
+	$serveraddress = $params["serverip"];
 	$serverusername = $params["serverusername"];
 	$serverpassword = $params["serverpassword"];
 	
-	$proxmox=new PVE2_API($serverip, $serverusername, "pam", $serverpassword);
+	$proxmox=new PVE2_API($serveraddress, $serverusername, "pam", $serverpassword);
 	if ($proxmox->login()) {
 		# Get first node name.
 		$nodes = $proxmox->get_node_list();
@@ -363,11 +363,11 @@ function pvewhmcs_SuspendAccount(array $params) {
 
 // PVE API FUNCTION, ADMIN: Unsuspend a Service on the hypervisor
 function pvewhmcs_UnsuspendAccount(array $params) {
-	$serverip = $params["serverip"];
+	$serveraddress = $params["serverip"];
 	$serverusername = $params["serverusername"];
 	$serverpassword = $params["serverpassword"];
 	
-	$proxmox=new PVE2_API($serverip, $serverusername, "pam", $serverpassword);
+	$proxmox=new PVE2_API($serveraddress, $serverusername, "pam", $serverpassword);
 	if ($proxmox->login()) {
 		# Get first node name.
 		$nodes = $proxmox->get_node_list();
@@ -399,11 +399,11 @@ function pvewhmcs_UnsuspendAccount(array $params) {
 
 // PVE API FUNCTION, ADMIN: Terminate a Service on the hypervisor
 function pvewhmcs_TerminateAccount(array $params) {
-	$serverip = $params["serverip"];
+	$serveraddress = $params["serverip"];
 	$serverusername = $params["serverusername"];
 	$serverpassword = $params["serverpassword"];
 
-	$proxmox=new PVE2_API($serverip, $serverusername, "pam", $serverpassword);
+	$proxmox=new PVE2_API($serveraddress, $serverusername, "pam", $serverpassword);
 	if ($proxmox->login()){
 		# Get first node name.
 		$nodes = $proxmox->get_node_list();
@@ -660,7 +660,7 @@ function pvewhmcs_ClientArea($params) {
 	$pveservice=Capsule::table('tblhosting')->find($params['serviceid']) ;
 	$pveserver=Capsule::table('tblservers')->where('id','=',$pveservice->server)->get()[0] ;
 	
-	$serverip = $pveserver->ipaddress;
+	$serveraddress = $pveserver->hostname;
 	$serverusername = $pveserver->username;
 
 	$api_data = array(
@@ -668,7 +668,7 @@ function pvewhmcs_ClientArea($params) {
 	);
 	$serverpassword = localAPI('DecryptPassword', $api_data);
 
-	$proxmox=new PVE2_API($serverip, $serverusername, "pam", $serverpassword['password']);
+	$proxmox=new PVE2_API($serveraddress, $serverusername, "pam", $serverpassword['password']);
 	if ($proxmox->login()) {
 		//$proxmox->setCookie();
 		# Get first node name.
@@ -851,10 +851,10 @@ function pvewhmcs_noVNC($params) {
 		throw new Exception("PVEWHMCS Error: VNC Secret in Module Config either not set or not long enough. Recommend 20+ characters for security.");
 	}
 	// Get login credentials then make the Proxmox connection attempt.
-	$serverip = $params["serverip"];
+	$serveraddress = $params["serverip"];
 	$serverusername = 'vnc';
 	$serverpassword = Capsule::table('mod_pvewhmcs')->where('id', '1')->value('vnc_secret');
-	$proxmox=new PVE2_API($serverip, $serverusername, "pve", $serverpassword);
+	$proxmox=new PVE2_API($serveraddress, $serverusername, "pve", $serverpassword);
 	if ($proxmox->login()) {
 		# Get first node name.
 		$nodes = $proxmox->get_node_list();
@@ -869,7 +869,7 @@ function pvewhmcs_noVNC($params) {
 		// $path should only contain the actual path without any query parameters
 		$path = 'api2/json/nodes/' . $first_node . '/' . $guest->vtype . '/' . $params['serviceid'] . '/vncwebsocket?port=' . $vm_vncproxy['port'] . '&vncticket=' . urlencode($vncticket);
 		// Construct the noVNC Router URL with the path already prepared now
-		$url = '/modules/servers/pvewhmcs/novnc_router.php?host=' . $serverip . '&pveticket=' . urlencode($pveticket) . '&path=' . urlencode($path) . '&vncticket=' . urlencode($vncticket);
+		$url = '/modules/servers/pvewhmcs/novnc_router.php?host=' . $serveraddress . '&pveticket=' . urlencode($pveticket) . '&path=' . urlencode($path) . '&vncticket=' . urlencode($vncticket);
 		// Build and deliver the noVNC Router hyperlink for access
 		$vncreply='<center><strong>Console (noVNC) prepared for usage. <a href="'.$url.'" target="_blanK">Click here</a> to open the noVNC window.</strong></center>' ;
 		return $vncreply;
@@ -886,10 +886,10 @@ function pvewhmcs_SPICE($params) {
 		throw new Exception("PVEWHMCS Error: VNC Secret in Module Config either not set or not long enough. Recommend 20+ characters for security.");
 	}
 	// Get login credentials then make the Proxmox connection attempt.
-	$serverip = $params["serverip"];
+	$serveraddress = $params["serverip"];
 	$serverusername = 'vnc';
 	$serverpassword = Capsule::table('mod_pvewhmcs')->where('id', '1')->value('vnc_secret');
-	$proxmox=new PVE2_API($serverip, $serverusername, "pve", $serverpassword);
+	$proxmox=new PVE2_API($serveraddress, $serverusername, "pve", $serverpassword);
 	if ($proxmox->login()) {
 		# Get first node name.
 		$nodes = $proxmox->get_node_list();
@@ -904,7 +904,7 @@ function pvewhmcs_SPICE($params) {
 		// $path should only contain the actual path without any query parameters
 		$path = 'api2/json/nodes/' . $first_node . '/' . $guest->vtype . '/' . $params['serviceid'] . '/vncwebsocket?port=' . $vm_vncproxy['port'] . '&vncticket=' . urlencode($vncticket);
 		// Construct the SPICE Router URL with the path already prepared now
-		$url = '/modules/servers/pvewhmcs/spice_router.php?host=' . $serverip . '&pveticket=' . urlencode($pveticket) . '&path=' . urlencode($path) . '&vncticket=' . urlencode($vncticket);
+		$url = '/modules/servers/pvewhmcs/spice_router.php?host=' . $serveraddress . '&pveticket=' . urlencode($pveticket) . '&path=' . urlencode($path) . '&vncticket=' . urlencode($vncticket);
 		// Build and deliver the SPICE Router hyperlink for access
 		$vncreply='<center><strong>Console (SPICE) prepared for usage. <a href="'.$url.'" target="_blanK">Click here</a> to open the noVNC window.</strong></center>' ;
 		return $vncreply;
@@ -921,10 +921,10 @@ function pvewhmcs_javaVNC($params){
 		throw new Exception("PVEWHMCS Error: VNC Secret in Module Config either not set or not long enough. Recommend 20+ characters for security.");
 	}
 	// Get login credentials then make the Proxmox connection attempt.
-	$serverip = $params["serverip"];
+	$serveraddress = $params["serverip"];
 	$serverusername = 'vnc';
 	$serverpassword = Capsule::table('mod_pvewhmcs')->where('id', '1')->value('vnc_secret');
-	$proxmox=new PVE2_API($serverip, $serverusername, "pve", $serverpassword);
+	$proxmox=new PVE2_API($serveraddress, $serverusername, "pve", $serverpassword);
 	if ($proxmox->login()) {
 		# Get first node name.
 		$nodes = $proxmox->get_node_list();
@@ -937,7 +937,7 @@ function pvewhmcs_javaVNC($params){
 		$vm_vncproxy=$proxmox->post('/nodes/'.$first_node.'/'.$guest->vtype.'/'.$params['serviceid'] .'/vncproxy', $vncparams) ;
 
 		$javaVNCparams=array() ;
-		$javaVNCparams[0]=$serverip ;
+		$javaVNCparams[0]=$serveraddress ;
 		$javaVNCparams[1]=str_replace("\n","|",$vm_vncproxy['cert']) ;
 		$javaVNCparams[2]=$vm_vncproxy['port'] ;
 		$javaVNCparams[3]=$vm_vncproxy['user'] ;
@@ -959,14 +959,14 @@ function pvewhmcs_vmStart($params) {
 	$pveservice=Capsule::table('tblhosting')->find($params['serviceid']) ;
 	$pveserver=Capsule::table('tblservers')->where('id','=',$pveservice->server)->get()[0] ;
 	
-	$serverip = $pveserver->ipaddress;
+	$serveraddress = $pveserver->hostname;
 	$serverusername = $pveserver->username;
 
 	$api_data = array(
 	    'password2' => $pveserver->password,
 	);
 	$serverpassword = localAPI('DecryptPassword', $api_data);
-	$proxmox=new PVE2_API($serverip, $serverusername, "pam", $serverpassword['password']);
+	$proxmox=new PVE2_API($serveraddress, $serverusername, "pam", $serverpassword['password']);
 	if ($proxmox->login()) {
 		# Get first node name.
 		$nodes = $proxmox->get_node_list();
@@ -1002,14 +1002,14 @@ function pvewhmcs_vmReboot($params) {
 	$pveservice=Capsule::table('tblhosting')->find($params['serviceid']) ;
 	$pveserver=Capsule::table('tblservers')->where('id','=',$pveservice->server)->get()[0] ;
 	
-	$serverip = $pveserver->ipaddress;
+	$serveraddress = $pveserver->hostname;
 	$serverusername = $pveserver->username;
 
 	$api_data = array(
 	    'password2' => $pveserver->password,
 	);
 	$serverpassword = localAPI('DecryptPassword', $api_data);
-	$proxmox=new PVE2_API($serverip, $serverusername, "pam", $serverpassword['password']);
+	$proxmox=new PVE2_API($serveraddress, $serverusername, "pam", $serverpassword['password']);
 	if ($proxmox->login()) {
 		# Get first node name.
 		$nodes = $proxmox->get_node_list();
@@ -1046,14 +1046,14 @@ function pvewhmcs_vmShutdown($params) {
 	$pveservice=Capsule::table('tblhosting')->find($params['serviceid']) ;
 	$pveserver=Capsule::table('tblservers')->where('id','=',$pveservice->server)->get()[0] ;
 	
-	$serverip = $pveserver->ipaddress;
+	$serveraddress = $pveserver->hostname;
 	$serverusername = $pveserver->username;
 
 	$api_data = array(
 	    'password2' => $pveserver->password,
 	);
 	$serverpassword = localAPI('DecryptPassword', $api_data);
-	$proxmox=new PVE2_API($serverip, $serverusername, "pam", $serverpassword['password']);
+	$proxmox=new PVE2_API($serveraddress, $serverusername, "pam", $serverpassword['password']);
 	if ($proxmox->login()) {
 		# Get first node name.
 		$nodes = $proxmox->get_node_list();
@@ -1090,14 +1090,14 @@ function pvewhmcs_vmStop($params) {
 	$pveservice=Capsule::table('tblhosting')->find($params['serviceid']) ;
 	$pveserver=Capsule::table('tblservers')->where('id','=',$pveservice->server)->get()[0] ;
 	
-	$serverip = $pveserver->ipaddress;
+	$serveraddress = $pveserver->hostname;
 	$serverusername = $pveserver->username;
 
 	$api_data = array(
 	    'password2' => $pveserver->password,
 	);
 	$serverpassword = localAPI('DecryptPassword', $api_data);
-	$proxmox=new PVE2_API($serverip, $serverusername, "pam", $serverpassword['password']);
+	$proxmox=new PVE2_API($serveraddress, $serverusername, "pam", $serverpassword['password']);
 	if ($proxmox->login()) {
 		# Get first node name.
 		$nodes = $proxmox->get_node_list();

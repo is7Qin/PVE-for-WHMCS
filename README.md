@@ -1,246 +1,162 @@
-# Proxmox VE for WHMCS (Module) Provision & Manage
+# PVE-WHMCS
 
-**Salvation, a free and open-source solution for beloved PVE!** If you love it, REVIEW & SHARE IT! ❤️
+- 使用自定义的CPU/RAM/VLAN/On-boot/Bandwidth等配置VM/CT计划
+- 通过[WHMCS](https://www.whmcs.com/tour/)轻松在[Proxmox VE](https://proxmox.com/en/proxmox-virtual-environment/features)中自动供应VM和CT
+- 在WHMCS客户区域查看/管理VM
+- 通过WHMCS创建/暂停/解除暂停/终止
+- 客户区域提供服务的统计/图形 🙂
 
-<img alt="Logo for the Proxmox VE for WHMCS module" src="zLOGO.png">
+## 🎯 模块：系统要求（PVE/WHMCS）
 
-- Configure VM/CT plans with custom CPU/RAM/VLAN/On-boot/Bandwidth/etc
-- Automatically Provision VMs & CTs in [Proxmox VE](https://proxmox.com/en/proxmox-virtual-environment/features) from [WHMCS](https://www.whmcs.com/tour/) easily
-- Allow clients to view/manage VMs using the WHMCS Client Area
-- Create/Suspend/Unsuspend/Terminate via WHMCS Admin Area
-- Statistics/Graphing is available in the Client Area for services :)
+新业务：新安装/使用WHMCS的业务需要注意服务ID < 100的情况。
 
-## ❤️ RTFM: Read the Manual & Review the Module!
+**SID >100：** WHMCS服务ID要求是关键的，因为Proxmox保留VMID <100（系统）。
 
-**Please read the entire README.md file before getting started with Proxmox VE for WHMCS.** Thanks!
+- （WHMCS）v8.x.x稳定版（需要HTTPS）
+- （WHMCS）**服务ID大于100**
+- （PHP）v8.1
+- （Proxmox）VE v8.x
+- （Proxmox）2个用户（API/VNC）
 
-We're pretty much done overhauling the Module to suit our needs at [The Network Crew Pty Ltd (TNC)](https://thenetworkcrew.com.au).
+_如果在WHMCS（DB：tblhosting.id）中没有足够的服务，请创建足够的虚拟/测试条目以达到服务ID>=101。_ **否则，您可能会看到以下错误:** `HTTP/1.1 400 Parameter verification failed. (invalid format - value does not look like a valid VM ID)`
 
-> **Please review the module!** https://marketplace.whmcs.com/product/6935-proxmox-ve-for-whmcs
-> 
-> If you want it to remain free and fabulous, it could use a moment of your time in reviewing it. Thanks!
+## ✅ 模块：安装和配置
 
-## 🎯 MODULE: System Requirements (PVE/WHMCS)
 
-New Biz: Fresh Installations/Businesses using WHMCS need to take note of the Service ID < 100 case.
+首先，上传并启用模块。
 
-**SID >100:** The WHMCS Service ID requirement is CRITICAL, as Proxmox reserves VMIDs <100 (system). 
+完成所有这些之后，为了使模块正常工作，您需要：
 
-- (WHMCS) v8.x.x stable (HTTPS)
-- (WHMCS) **Service ID above 100**
-- (PHP) v8.x (stable version)
-- (Proxmox) VE v8.x (current)
-- (Proxmox) 2 users (API/VNC)
+0. 在PVE按照以下教程创建一个VNC用户
+1. WHMCS Admin > Config > Servers > 添加PVE主机（用户：root；IP：PVE's）
+2. WHMCS Admin > Addons > Proxmox VE for WHMCS > 模块配置 > VNC密钥（见下文）
+3. WHMCS Admin > Addons > Proxmox VE for WHMCS > 添加KVM/LXC计划
+4. WHMCS Admin > Addons > Proxmox VE for WHMCS > 添加IP池
+5. WHMCS Admin > Config > Products/Services > 新服务（创建提供）
+6. " " > 新添加的服务 > Tab 3 > **保存**（将模块计划链接到WHMCS服务类型）
 
-_If you don't have enough services (of any status) in WHMCS (DB: tblhosting.id), create enough dummy/test entries to reach Service ID 101+._ **Else you're likely to see an error which explains this:** `HTTP/1.1 400 Parameter verification failed. (invalid format - value does not look like a valid VM ID)`
+## 🥽 noVNC：控制台隧道（客户区域）
 
-## ✅ MODULE: Installation & Configuration
+在分叉模块之后，我们考虑如何通过WHMCS改进控制台隧道的安全性。我们决定实施一种使用Proxmox VE中具有非常严格权限的辅助用户的路由方法。这需要更多的工作使其正常工作，但提高了安全性。
 
-**DON'T SKIP ANY PART OF THIS README.md - please don't raise pointless Issues - thank you!**
+### 通过WHMCS客户区域提供VNC
 
-Firstly, you need to upload, activate and make the WHMCS Module available to Administrators.
+1. 正确安装和配置模块
+2. 遵循下面的PVE用户要求信息
+3. PVE的公共IPv4（或代理到私有）
+4. PVE和WHMCS位于同一域名*
+5. PVE地址的有效PTR/rDNS
 
-Once you've done all of that, in order to get the module working properly, you need to:
 
-0. Proxmox VE > Create an additional VNC-only user, per instructions below
-1. WHMCS Admin > Config > Servers > Add your PVE host/s (user: root; IP: PVE's)
-2. WHMCS Admin > Addons > Proxmox VE for WHMCS > Module Config > VNC Secret (see below)
-3. WHMCS Admin > Addons > Proxmox VE for WHMCS > Add KVM/LXC Plan/s
-4. WHMCS Admin > Addons > Proxmox VE for WHMCS > Add an IP Pool
-5. WHMCS Admin > Config > Products/Services > New Service (create offering)
-6. " " > Newly-added Service > Tab 3 > **SAVE** (links Module Plan to WHMCS Service type)
+- 注意＃1 = 您必须在相同域名的不同子域上使用Cookie（防止CSRF）。
+- 注意＃2 = 如果您的域名具有2部分TLD（即.co.uk），则需要分叉和修改`novnc_router.php` - 理想情况下，我们/某人将优化此以更好地满足所有格式的要求。
 
-## 🥽 noVNC: Console Tunnel (Client Area)
+## 👥 PVE：用户要求（API和VNC）
 
-After forking the module, we considered how to improve security of Console Tunneling via WHMCS. We decided to implement a routing method which uses a secondary user in Proxmox VE with very restrictive permissions. This requires more work to make it function, however improves security.
+**您必须拥有根帐户才能使用该模块。** 通过WHMCS > 服务器配置。
 
-### To offer VNC via WHMCS Client Area
+此外，为了提高安全性，对于VNC，您还必须拥有受限用户。在_模块_中配置。
 
-1. Install & configure the module properly
-2. Follow the PVE User Requirement info below
-3. Public IPv4 for PVE (or proxy to private)
-4. PVE and WHMCS on the same Domain Name*
-5. Have valid PTR/rDNS for the PVE Address
+### 在PVE中创建VNC用户
 
-noVNC has been overhauled. It isn't guaranteed, nor the project at all. :-)
+1. 通过PVE > 数据中心/权限/组创建用户组“VNC”
+2. 创建新用户“vnc” > 通过PVE > 数据中心/权限/用户选择组：“VNC”，领域：pve
+3. 创建新角色 -> 通过PVE > 数据中心/权限/角色选择名称：“VNC”，特权：VM.Console（仅此）
+4. 添加访问VNC的权限 -> 通过PVE > 节点/VM/权限/添加组权限选择组：“VNC”，角色：“VNC”
+5. 使用“vnc”密码配置WHMCS > 模块 > Proxmox VE for WHMCS > 模块配置 > VNC秘密。
 
-- Note #1 = You must use different Subdomains on the same Domain Name, for the cookie (anti-CSRF).
-- Note #2 = If your Domain Name has a 2-part TLD (ie. co.uk) then you will need to fork & amend `novnc_router.php` - ideally we/someone will optimise this to better cater to all formats.
+> 不要设置较不严格的权限。上述设计用于增强超级用户的安全性。
 
-## 👥 PVE: User Requirements (API & VNC)
+## ⚙️ VM/CT计划：设置一切
 
-**You must have a root account to use the Module at all.** Configured via WHMCS > Servers.
+这些步骤解释了每个选项的独特要求。
 
-Additionally, to improve security, for VNC you must also have a Restricted User. Configured in the _Module_.
+自定义字段：值需要放在名称和选择选项中。
 
-### Creating the VNC user within PVE
+> **不确定？** 参考zMANUAL-PVE4.pdf _legacy_手册文件。
 
-1. Create User Group "VNC" via PVE > Datacenter / Permissions / Group
-2. Create new User "vnc" > Datacenter / Permissions / Users - select Group: "VNC", Realm: pve
-3. Create new Role -> Datacenter / Permissions / Roles - select Name: "VNC", Privileges: VM.Console (only)
-4. Add permission to access VNC -> Datacenter / Node / VM / Permissions / Add Group Permissions - select Group: "VNC", Role: "VNC"
-5. Configure the WHMCS > Modules > Proxmox VE for WHMCS > Module Config > VNC Secret with 'vnc' password.
+### VM选项1：使用PVE模板VM的KVM
 
-> Do NOT set less restrictive permissions. The above is designed for hypervisor security.
+首先，在PVE中创建模板。您需要其唯一的PVE ID。
 
-## ⚙️ VM/CT PLANS: Setting everything up
+在自定义字段`KVMTemplate`中使用该ID，如`ID|Name`。
 
-These steps explain the unique requirements per-option.
+> 注意：“Name”是在WHMCS客户区域中显示的内容。
 
-Custom Fields: Values need to go in Name & Select Options.
+### VM选项2：KVM，使用WHMCS计划+ PVE ISO
 
-> **Unsure?** Consult the zMANUAL-PVE4.pdf _legacy_ manual file.
+首先，在WHMCS模块中创建计划。然后，在WHMCS配置 > 服务。
 
-### VM Option 1: KVM, using PVE Template VM
+在服务下，您需要添加一个具有完整
 
-Firstly, create the Template in PVE. You need its unique PVE ID.
+位置的自定义字段`ISO`。
 
-Use that ID in the Custom Field `KVMTemplate`, as in `ID|Name`.
+### CT选项：LXC，使用PVE模板文件
 
-> Note: `Name` is what's displayed in the WHMCS Client Area.
+首先，在PVE中存储模板。您需要其唯一的文件名。
 
-### VM Option 2: KVM, WHMCS Plan + PVE ISO
-
-Firstly, create the Plan in WHMCS Module. Then, WHMCS Config > Services.
-
-Under the Service, you need to add a Custom Field `ISO` with the full location.
-
-### CT Option: LXC, using PVE Template File
-
-Firstly, store the Template in PVE. You need its unique File Name.
-
-Use that full file name in the Custom Field `Template`, as in:
+在自定义字段`Template`中使用该完整文件名，如：
 
 `ubuntu-99.99-standard_amd64.tar.gz|Ubuntu 99`
 
-Then make a 2nd Custom Field `Password` for the CT's root user.
+然后为CT的root用户创建第二个自定义字段`Password`。
 
-## 🌐 IPv4/v6: Networking (IP Pools)
+## 🌐 IPv4/v6：网络（IP池）
 
-Please make sure you create an IP Pool with sufficient scope/size to be able to deploy addresses within it to your guest VMs and CTs. Else it won't be able to create a Service for you.
+请确保创建具有足够范围/大小的IP池，以能够为VM和CT部署地址。否则，它将无法为您创建服务。
 
-**Private IPs for PVE Hosts:** Note that VNC may be problematic without work due to the strict requirements introduced in Proxmox v8.0 (strict same-site attribute).
+**PVE主机的私有IP：**请注意，由于Proxmox v8.0（严格的same-site属性）引入了严格的要求，VNC可能会在没有工作的情况下导致问题。
 
-### IPv6: Not yet functional! 😐
+### IPv6：尚未生效！ 😐
 
-Per The-Network-Crew/Proxmox-VE-for-WHMCS#33 there is not yet functional IPv6 in this module. 
+根据The-Network-Crew/Proxmox-VE-for-WHMCS#33，此模块目前尚未支持IPv6。
 
-You can of course add this via PVE/`pvesh` manually, however it isn't module-supported as of late 2023.
+当然，您可以通过PVE/`pvesh`手动添加，但截至2023年末，它尚未得到模块的支持。
 
-## 💅 FEATURES: PVE v8.0/8.1 bling
+## 💅 功能：PVE v8.0/8.1的亮点
 
-There are new features deployed into Proxmox VE upstream in the v8 branch which are exciting and should be added to this module.
+在v8分支中，Proxmox VE上游部署了一些令人兴奋的新功能，应该添加到此模块中。
 
 ### Proxmox v8.0
 
-1. Create, manage and assign resource mappings for PCI and USB devices for use in virtual machines (VMs) via API and web UI. 
-2. (DONE) Add virtual machine CPU models based on the x86-64 psABI Micro-Architecture Levels and use the widely supported x86-64-v2-AES as default for new VMs created via the web UI. 
+1. 通过API和Web UI为PCI和USB设备创建、管理和分配资源映射，以供虚拟机（VM）使用。
+2. （完成）基于x86-64 psABI微架构级别添加虚拟机CPU模型，并使用广泛支持的x86-64-v2-AES作为通过Web UI创建的新VM的默认值。
 
 ### Proxmox v8.1
 
-1. Secure Boot support.
-2. Software Defined Networking (SDN).
-3. New flexible notification system (SMTP & Gotify).
-4. MAC Organizationally Unique Identifier (OUI) BC:24:11: prefix!
+1. 安全启动支持。
+2. 软件定义的网络（SDN）。
+3. 新的灵活通知系统（SMTP和Gotify）。
+4. MAC组织唯一标识符（OUI）BC:24:11:前缀！
 
-Reference: https://pve.proxmox.com/wiki/Roadmap
+参考：https://pve.proxmox.com/wiki/Roadmap
 
-## 🤬 ABUSE: Zero Tolerance (ZT)
+## 🔄 更新：修补模块
 
-This module has been overhauled and remains functionally-OK but not thoroughly tested nor reviewed.
+WHMCS管理 > 插件模块 > Proxmox VE for WHMCS > 支持/健康显示更新。
 
-Your support and assistance is always welcomed per the spirit of FOSS (Free Open-source Software)!
+您可以下载新版本并覆盖安装，然后运行任何需要的SQL操作。
 
-If you cannot accept this, do not download nor use the code. Complaints, nasty reviews, and similar behaviour is against the spirit of FOSS and will not be tolerated. 
+请参阅[UPDATE-SQL.md](https://github.com/The-Network-Crew/Proxmox-VE-for-WHMCS/blob/master/UPDATE-SQL.md)文件，打开您的WHMCS DB并运行语句。然后您就完成了。
 
-**Be grateful & considerate - thank you!**
+## 🖥️ INC：库和依赖关系
 
-## 🆘 HELP: Best-effort Support
+- （MIT）[PVE2 API的PHP客户端](https://github.com/CpuID/pve2-api-php-client)（2022年12月5日）
+- （GPLv2）[TigerVNC VncViewer.jar](https://sourceforge.net/projects/tigervnc/files/stable/)（存储库中的v1.13.1）
+- （MPLv2）[noVNC HTML5 Viewer](https://github.com/novnc/noVNC)（存储库中的v1.4.0）
+- （GPLv3）[SPICE HTML5 Viewer](https://gitlab.freedesktop.org/spice/spice-html5)（存储库中的v0.3）
+- （MIT）[IPv4/SN验证](https://github.com/tapmodo/php-ipv4/)（2012年8月）
 
-**Before raising a [GitHub Issue](https://github.com/The-Network-Crew/Proxmox-VE-for-WHMCS/issues), please check:**
+## 📄 DIY：文档和资源
 
-1. The [Wiki](https://github.com/The-Network-Crew/Proxmox-VE-for-WHMCS/wiki)
-2. The [README.md](https://github.com/The-Network-Crew/Proxmox-VE-for-WHMCS/tree/master)
-3. Open [GitHub Issues](https://github.com/The-Network-Crew/Proxmox-VE-for-WHMCS/issues)
-4. HTTP, PHP, WHMCS & debug logs (see below).
-5. PVE logs; best practices; network; etc.
-6. Read the errors. Do they explain it?
+- Proxmox API：https://pve.proxmox.com/pve-docs/api-viewer/
+- TigerVNC：https://github.com/TigerVNC/tigervnc/wiki
+- noVNC：https://github.com/novnc/noVNC/wiki
+- WHMCS：https://developers.whmcs.com/
+- x86-64-ABI：[最新PDF下载](https://gitlab.com/x86-psABIs/x86-64-ABI/-/jobs/artifacts/master/raw/x86-64-ABI/abi.pdf?job=build)
 
-> Help: Including logs, details, steps to reproduce, etc, please raise a [GitHub Issue](https://github.com/The-Network-Crew/Proxmox-VE-for-WHMCS/issues).
->
-> Logs: We work to ensure that Proxmox VE for WHMCS passes through error details to you.
+## 使用许可证（GPLv3）
 
-### Issues/etc raised must include:
+_**此模块根据GNU通用公共许可证（GPL）v3.0许可。**_
 
-#### Logging & Debug Logging
-
-- (Logs: PHP) `error_log` contents
-- (Logs: WHMCS) Module Debug Logging*
-- (Logs: Config) WHMCS Display/Log Errors = ON
-- (Logs: PVE) Logs from Proxmox Host (`pveproxy` etc)
-
-#### Other Support Requirements
-
-- (Visibility) Screenshots of the issue
-- (Configs) WHMCS/PHP/Module/Proxmox/etc
-- (Reproduction) `pvesh` etc variants of failing calls
-- (Network) Proof WHMCS Server can talk to PVE OK
-- (PEBKAC) _PROOF THAT YOU'VE FOLLOWED THIS README!_
-
-The more info/context you provide up-front, the quicker & easier it will be!
-
-\* Debug: Make sure you enable Debug Logging in the Module Settings, as needed.
-
-**Please note that this is FOSS and Support is not guaranteed at all.**
-
-**If you don't read, listen or actively try, no help given.**
-
-## 🔄 UPDATING: Patching the Module
-
-WHMCS Admin > Addon Modules > Proxmox VE for WHMCS > Support/Health shows updates.
-
-You can download the new version and upload it over the top, then run any needed SQL ops.
-
-Please consult the [UPDATE-SQL.md](https://github.com/The-Network-Crew/Proxmox-VE-for-WHMCS/blob/master/UPDATE-SQL.md) file, open your WHMCS DB & run the statements. Then you're done.
-
-## 🖥️ INC: Libraries & Dependencies
-
-- (MIT) [PHP Client for PVE2 API](https://github.com/CpuID/pve2-api-php-client) (Dec 5th, 2022)
-- (GPLv2) [TigerVNC VncViewer.jar](https://sourceforge.net/projects/tigervnc/files/stable/) (v1.13.1 in repo)
-- (MPLv2) [noVNC HTML5 Viewer](https://github.com/novnc/noVNC) (v1.4.0 in repo)
-- (GPLv3) [SPICE HTML5 Viewer](https://gitlab.freedesktop.org/spice/spice-html5) (v0.3 in repo)
-- (MIT) [IPv4/SN Validation](https://github.com/tapmodo/php-ipv4/) (August 2012)
-
-## 📄 DIY: Documentation & Resources
-
-- Proxmox API: https://pve.proxmox.com/pve-docs/api-viewer/
-- TigerVNC: https://github.com/TigerVNC/tigervnc/wiki
-- noVNC: https://github.com/novnc/noVNC/wiki
-- WHMCS: https://developers.whmcs.com/
-- x86-64-ABI: [latest PDF download](https://gitlab.com/x86-psABIs/x86-64-ABI/-/jobs/artifacts/master/raw/x86-64-ABI/abi.pdf?job=build)
-
-## 🎉 FOSS: Contributions & Open-source
-
-If you'd like to contribute to the Module, please open a [PR](https://github.com/The-Network-Crew/Proxmox-VE-for-WHMCS/pulls).
-
-The original module was written in 2 months by @cybercoder for sale online in 2016, though didn't sell any copies so they kindly open-sourced it and removed the licensing requirement.
-
-We would like to thank [@cybercoder](https://github.com/cybercoder/) and [@WaldperlachFabi](https://github.com/WaldperlachFabi) for their original contributions and troubleshooting assistance respectively. 
-
-Thank you to [psyborg®](https://www.psyborg.com.au/graphic-design-services-newcastle/logo-design/) for the module's logo design! We love it.
-
-FOSS is only possible thanks to dedicated individuals!
-
-## Usage License (GPLv3) & Links to TNC & Co.
-
-_**This module is licensed under the GNU General Public License (GPL) v3.0.**_
-
-GPLv3: https://www.gnu.org/licenses/gpl-3.0.txt (by the Free Software Foundation)
-
-**[The Network Crew Pty Ltd](https://thenetworkcrew.com.au)**
-
-**[LEOPARD.host](https://leopard.host)**
-
-### Support: Best-effort via GitHub Issues
-
-Browse issues, raise a new one: **[GitHub Issues](https://github.com/The-Network-Crew/Proxmox-VE-for-WHMCS/issues)**
+GPLv3：https://www.gnu.org/licenses/gpl-3.0.txt（由自由软件基金会提供）

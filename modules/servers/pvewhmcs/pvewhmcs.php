@@ -710,8 +710,12 @@ function pvewhmcs_ClientArea($params) {
 			$vm_status['memusepercent'] = intval($vm_status['mem'] * 100 / $vm_status['maxmem']);
 
 			if ($guest->vtype == 'lxc') {
-				$ct_specific=$proxmox->get('/nodes/'.$first_node.'/lxc/'.$params['serviceid'] .'/status/current') ;
-				$vm_status['swapusepercent'] = intval($ct_specific['swap'] * 100 / $ct_specific['maxswap']);
+				$ct_specific = $proxmox->get('/nodes/'.$first_node.'/lxc/'.$params['serviceid'].'/status/current');
+				if ($ct_specific['maxswap'] != 0) {
+					$vm_status['swapusepercent'] = intval($ct_specific['swap'] * 100 / $ct_specific['maxswap']);
+				} else {
+					$vm_status['swapusepercent'] = 0; // 当maxswap为0时，swap使用率为0
+				}
 			}
 		} else {
 		    // Handle the VM not found in the cluster resources (Optional)
